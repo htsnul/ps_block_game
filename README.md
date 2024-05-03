@@ -9,7 +9,7 @@ OSに標準で入っている機能だけでゲームを作るということに
 
 ## 作ったゲーム
 
-![game_ss.png]
+![Game Screenshot](game_ss.png)
 
 テトリスを一般化したもの。
 ブロックが4x4の領域にランダムに生成されたものになっている。
@@ -175,6 +175,7 @@ powershell -ExecutionPolicy Unrestricted -File game.ps1
 
 ## リポジトリ
 
+https://github.com/htsnul/ps_block_game
 
 ## まとめ
 
