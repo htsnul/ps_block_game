@@ -63,38 +63,31 @@ function DrawImageData($graphics) {
   $bmp.UnlockBits($bmpData)
   $graphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
   $graphics.PixelOffsetMode = [Drawing.Drawing2D.PixelOffsetMode]::Half
-  $graphics.DrawImage($bmp, 0, 0, $bmp.Width * $bmpScale, $bmp.Height * $bmpScale);
+  $graphics.DrawImage($bmp, 0, 0, $bmp.Width * $bmpScale, $bmp.Height * $bmpScale)
 }
 
 $keys = [int[]]::new(256)
 
-# https://github.com/PowerShell/PowerShell/issues/21140
-Add-Type -Language CSharp -ReferencedAssemblies System.Windows.Forms @'
-  using System.Windows.Forms;
-  public class DoubleBufferedForm : Form {
-    public DoubleBufferedForm() {
-      this.SetStyle( 
-        ControlStyles.DoubleBuffer |
-        ControlStyles.AllPaintingInWmPaint,
-        true
-      );
-      this.UpdateStyles();
-    }
-  }
-'@
-
 function ShowForm() {
-  $form = [DoubleBufferedForm]::new()
+  $form = [Windows.Forms.Form]::new()
   $form.FormBorderStyle = [Windows.Forms.FormBorderStyle]::FixedDialog
   $form.Text = 'Game'
   $form.ClientSize = [Drawing.Size]::new($bmp.Width * $bmpScale, $bmp.Height * $bmpScale)
   $form.StartPosition = 'CenterScreen'
-  $form.Add_KeyDown({ param ($form, $event); $keys[$event.KeyValue] = 1 })
-  $form.Add_KeyUp({ param ($form, $event); $keys[$event.KeyValue] = 0 })
-  $form.Add_Paint({ param ($sender, $event); Update $event.Graphics })
   $form.Topmost = $true
+  [System.Windows.Forms.Form].GetMethod('SetStyle',
+    [Reflection.BindingFlags]::NonPublic -bor
+    [Reflection.BindingFlags]::Instance
+  ).Invoke($form, @(
+    [Windows.Forms.ControlStyles]::DoubleBuffer -bor
+    [Windows.Forms.ControlStyles]::AllPaintingInWmPaint
+    $true
+  ))
+  $form.Add_KeyDown({ param ($sender, $event); $keys[$event.KeyValue] = 1 })
+  $form.Add_KeyUp({ param ($sender, $event); $keys[$event.KeyValue] = 0 })
+  $form.Add_Paint({ param ($sender, $event); Update $event.Graphics })
   $timer = [Windows.Forms.Timer]::new()
-  $timer.Interval = 100;
+  $timer.Interval = 100
   $timer.Add_Tick({ $form.Invalidate($true) })
   $timer.Start()
   $form.ShowDialog()
@@ -139,10 +132,25 @@ https://github.com/PowerShell/PowerShell/issues/21140
 に書かれているような事情により、`Add-Type` で追加されたクラスをクラス定義時に認識できない。
 なので、PowerShellでは `Add-Type` されたクラスを継承することができない。
 
-仕方がないので、C#のコードで継承を記載して、それを、
+そこで、
 
 ```
-Add-Type -Language CSharp -ReferencedAssemblies System.Windows.Forms @'
+  [System.Windows.Forms.Form].GetMethod('SetStyle',
+    [Reflection.BindingFlags]::NonPublic -bor
+    [Reflection.BindingFlags]::Instance
+  ).Invoke($form, @(
+    [Windows.Forms.ControlStyles]::DoubleBuffer -bor
+    [Windows.Forms.ControlStyles]::AllPaintingInWmPaint
+    $true
+  ))
+```
+
+と、メソッドを取得して明示的に呼び出すことで回避している。
+
+別解として、
+
+```
+Add-Type -ReferencedAssemblies System.Windows.Forms @'
   using System.Windows.Forms;
   public class DoubleBufferedForm : Form {
     public DoubleBufferedForm() {
@@ -157,9 +165,13 @@ Add-Type -Language CSharp -ReferencedAssemblies System.Windows.Forms @'
 '@
 ```
 
-のように `Add-Type` することで回避している。
-なんとかPowerShellだけで書きたいものだけれど、チラつきをなくすことも重要なので仕方ない。
-（これをするなら＆これができるなら全てC#で書いてもよいのではないかという気持ちにもなってしまうが）
+と、C#のコードで継承し `Add-Type` し、`$form` を、
+
+```
+  $form = [DoubleBufferedForm]::new()
+```
+
+で生成し回避することもできる。
 
 ## 起動
 
@@ -168,7 +180,7 @@ PowerShellのスクリプトはそのままでは起動できない。
 ファイル `game.bat` を作り、
 
 ```
-powershell -ExecutionPolicy Unrestricted -File game.ps1
+powershell -ExecutionPolicy Unrestricted -File %~n0.ps1
 ```
 
 のように記載しておけば、`game.bat` 経由で起動できるようになる。

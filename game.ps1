@@ -34,39 +34,32 @@ function DrawImageData($graphics) {
   $bmp.UnlockBits($bmpData)
   $graphics.InterpolationMode = [Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
   $graphics.PixelOffsetMode = [Drawing.Drawing2D.PixelOffsetMode]::Half
-  $graphics.DrawImage($bmp, 0, 0, $bmp.Width * $bmpScale, $bmp.Height * $bmpScale);
+  $graphics.DrawImage($bmp, 0, 0, $bmp.Width * $bmpScale, $bmp.Height * $bmpScale)
 }
 
 $keys = [int[]]::new(256)
 $keyCounts = [int[]]::new(256)
 
-# https://github.com/PowerShell/PowerShell/issues/21140
-Add-Type -Language CSharp -ReferencedAssemblies System.Windows.Forms @'
-  using System.Windows.Forms;
-  public class DoubleBufferedForm : Form {
-    public DoubleBufferedForm() {
-      this.SetStyle( 
-        ControlStyles.DoubleBuffer |
-        ControlStyles.AllPaintingInWmPaint,
-        true
-      );
-      this.UpdateStyles();
-    }
-  }
-'@
-
 function ShowForm() {
-  $form = [DoubleBufferedForm]::new()
+  $form = [Windows.Forms.Form]::new()
   $form.FormBorderStyle = [Windows.Forms.FormBorderStyle]::FixedDialog
   $form.Text = 'Game'
   $form.ClientSize = [Drawing.Size]::new($bmp.Width * $bmpScale, $bmp.Height * $bmpScale)
   $form.StartPosition = 'CenterScreen'
-  $form.Add_KeyDown({ param ($form, $event); $keys[$event.KeyValue] = 1 })
-  $form.Add_KeyUp({ param ($form, $event); $keys[$event.KeyValue] = 0 })
-  $form.Add_Paint({ param ($sender, $event); Update $event.Graphics })
   $form.Topmost = $true
+  [System.Windows.Forms.Form].GetMethod('SetStyle',
+    [Reflection.BindingFlags]::NonPublic -bor
+    [Reflection.BindingFlags]::Instance
+  ).Invoke($form, @(
+    [Windows.Forms.ControlStyles]::DoubleBuffer -bor
+    [Windows.Forms.ControlStyles]::AllPaintingInWmPaint
+    $true
+  ))
+  $form.Add_KeyDown({ param ($sender, $event); $keys[$event.KeyValue] = 1 })
+  $form.Add_KeyUp({ param ($sender, $event); $keys[$event.KeyValue] = 0 })
+  $form.Add_Paint({ param ($sender, $event); Update $event.Graphics })
   $timer = [Windows.Forms.Timer]::new()
-  $timer.Interval = 100;
+  $timer.Interval = 100
   $timer.Add_Tick({ $form.Invalidate($true) })
   $timer.Start()
   $form.ShowDialog()

@@ -1,1 +1,1 @@
-powershell -ExecutionPolicy Unrestricted -File game.ps1
+powershell -ExecutionPolicy Unrestricted -File %~n0.ps1
